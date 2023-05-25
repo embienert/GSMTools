@@ -202,7 +202,7 @@ def main():
                 res = cursor.fetchone()
                 if res[0] != 0:
                     num_matches += 1
-                    row[datacollection_marker_column].value = "x"
+                    worksheet.cell(row=row_index+3, column=datacollection_marker_column).value = "x"
 
                     print("MATCH FOUND")
                     continue
