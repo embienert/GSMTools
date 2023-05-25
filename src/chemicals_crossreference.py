@@ -193,6 +193,10 @@ def main():
         for row_index, row in enumerate(worksheet.iter_rows(min_row=3, max_row=worksheet_line_count)):
             print(f"PROCESSING ROW {row_index + 3} OF {worksheet_line_count}... ", end="")
 
+            if all(map(lambda x: x.value is None, row)):
+                print("EMPTY ROW")
+                break
+
             if str(row[datacollection_product_id_column].value).strip() in ["", "None"]:
                 cross_reference_request = ' AND '.join([f'{db_column} LIKE \"{str(row[xlsx_column].value).replace(",", ".")}\"'
                                                         for (db_column, xlsx_column) in cross_references])
