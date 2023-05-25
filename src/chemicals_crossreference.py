@@ -194,7 +194,7 @@ def main():
             print(f"PROCESSING ROW {row_index + 3} OF {worksheet_line_count}... ", end="")
 
             if str(row[datacollection_product_id_column].value).strip() in ["", "None"]:
-                cross_reference_request = ' AND '.join([f'{db_column} LIKE \"{row[xlsx_column].value}\"'
+                cross_reference_request = ' AND '.join([f'{db_column} LIKE \"{str(row[xlsx_column].value).replace(",", ".")}\"'
                                                         for (db_column, xlsx_column) in cross_references])
                 cursor.execute(f"SELECT COUNT(id) FROM {TABLE_NAME} "
                                f"WHERE {DATA_PRODUCER_COLUMN} LIKE '{DATA_PRODUCER_ALL}' AND "
