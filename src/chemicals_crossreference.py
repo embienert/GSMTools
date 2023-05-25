@@ -27,7 +27,7 @@ CROSS_REFERENCES = [
 
 
 def load_worksheet(path_to_excel: Union[PathLike, str], worksheet_name: Union[str, int]):
-    workbook: xl.Workbook = xl.load_workbook(path_to_excel)
+    workbook: xl.Workbook = xl.load_workbook(path_to_excel, data_only=True)
 
     if isinstance(worksheet_name, int):
         worksheet = workbook.worksheets[worksheet_name]
@@ -193,12 +193,12 @@ def main():
         for row_index, row in enumerate(worksheet.iter_rows(min_row=3, max_row=worksheet_line_count)):
             print(f"PROCESSING ROW {row_index + 3} OF {worksheet_line_count}... ", end="")
 
-            if all(map(lambda x: x.value is None, row)):
+            if all(map(lambda x: str(x.value).strip() in ["", "None"], row)):
                 print("EMPTY ROW")
                 break
 
             if str(row[datacollection_product_id_column].value).strip() in ["", "None"]:
-                cross_reference_request = ' AND '.join([f'{db_column} LIKE \"{str(row[xlsx_column].value).replace(",", ".")}\"'
+                cross_reference_request = ' AND '.join([f'{db_column} LIKE \"{str(row[xlsx_column].value).replace(",", ".").strip()}\"'
                                                         for (db_column, xlsx_column) in cross_references])
                 cursor.execute(f"SELECT COUNT(id) FROM {TABLE_NAME} "
                                f"WHERE {DATA_PRODUCER_COLUMN} LIKE '{DATA_PRODUCER_ALL}' AND "
@@ -225,6 +225,9 @@ def main():
 
             print(f"FOUND {num_matches} MATCHES")
             print(f"WROTE CHANGES TO {out_filename}")
+
+    connection.commit()
+    connection.close()
 
 
 if __name__ == '__main__':
