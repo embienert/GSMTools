@@ -1,7 +1,7 @@
 import os
 from os import PathLike
 from os.path import basename
-from typing import Union
+from typing import Union, Any
 
 from tkinter.filedialog import askopenfilenames
 from tkinter import Tk
@@ -18,10 +18,12 @@ DATACOLLECTION_PRODUCT_ID_COLUMN = "D"
 DATACOLLECTION_MARKER_COLUMN = "AQ"
 DATA_PRODUCER_COLUMN = "hersteller"
 DATA_PRODUCER_ALL = "alle Hersteller"
+
+CONCENTRATION_MAX_OFFSET = 2
 CROSS_REFERENCES = [
-    ("handelsname", "A"),
-    ("cas_nr", "H"),
-    ("konzentration_prozent", "G")
+    ("handelsname", "A", 0),
+    ("cas_nr", "H", 0),
+    ("konzentration_prozent", "G", CONCENTRATION_MAX_OFFSET)
 ]
 
 
@@ -132,6 +134,26 @@ def append_to_filename(filename: Union[PathLike, str], appendix: str) -> str:
     return filename_base + appendix + "." + filename_split[-1]
 
 
+def SQLEqualTemplate(field_name: str, value: Any) -> str:
+    return f'{field_name} LIKE "{str(value).replace(",", ".").strip()}"'
+
+
+def SQLMaxDeviationTemplate(field_name: str, value: Any, max_deviation: float) -> str:
+    try:
+        value = float(str(value).replace(",", ".").strip())
+    except ValueError:
+        value = 200.0
+    return f'(CAST({field_name} AS DECIMAL) - {value}) < {max_deviation}'
+
+
+def SQLDeviationTemplate(field_name: str, value: Any) -> str:
+    try:
+        value = float(str(value).replace(",", ".").strip())
+    except ValueError:
+        value = 200.0
+    return f'(CAST({field_name} AS DECIMAL) - {value})'
+
+
 def main():
     connection: sql.Connection = sql.connect("db.sqlite")
     cursor: sql.Cursor = connection.cursor()
@@ -179,7 +201,8 @@ def main():
                                  filetypes=[("EXCEL Files", "*.xlsx"), ])
     window.destroy()
 
-    cross_references = [(column_name, column_index_from_string(xlsx_column)-1) for (column_name, xlsx_column) in CROSS_REFERENCES]
+    cross_references = [(column_name, column_index_from_string(xlsx_column)-1, max_offset) for
+                        (column_name, xlsx_column, max_offset) in CROSS_REFERENCES]
     datacollection_product_id_column = column_index_from_string(DATACOLLECTION_PRODUCT_ID_COLUMN) - 1
     datacollection_marker_column = column_index_from_string(DATACOLLECTION_MARKER_COLUMN) - 1
 
@@ -198,15 +221,27 @@ def main():
                 break
 
             if str(row[datacollection_product_id_column].value).strip() in ["", "None"]:
-                cross_reference_request = ' AND '.join([f'{db_column} LIKE \"{str(row[xlsx_column].value).replace(",", ".").strip()}\"'
-                                                        for (db_column, xlsx_column) in cross_references])
+                cross_reference_request = ' AND '.join([SQLEqualTemplate(db_column, row[xlsx_column].value) if max_offset == 0 else
+                                                        SQLMaxDeviationTemplate(db_column, row[xlsx_column].value, max_offset)
+                                                        for (db_column, xlsx_column, max_offset) in cross_references])
+                deviation_queries = [SQLDeviationTemplate(db_column, row[xlsx_column].value + " ASC")
+                                     if max_offset != 0 else None
+                                     for (db_column, xlsx_column, max_offset) in cross_references]
+                deviation_queries = list(filter(lambda x: x is not None, deviation_queries))
                 cursor.execute(f"SELECT COUNT(id) FROM {TABLE_NAME} "
                                f"WHERE {DATA_PRODUCER_COLUMN} LIKE '{DATA_PRODUCER_ALL}' AND "
-                               f"{cross_reference_request}")
+                               f"{cross_reference_request}"
+                               f" ORDER BY {','.join(deviation_queries)}")
                 res = cursor.fetchone()
                 if res[0] != 0:
                     num_matches += 1
                     worksheet.cell(row=row_index+3, column=datacollection_marker_column).value = "x"
+
+                    # TODO
+                    # Check if there are H-Rules in Datenerfassung?
+                    # Yes: Ignore
+                    # No:
+                    #   Copy over H-, P- and EUH-Rules from rollout with lowest deviation
 
                     print("MATCH FOUND")
                     continue
