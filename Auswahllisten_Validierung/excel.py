@@ -22,12 +22,13 @@ class Column:
 
 
 class ReferenceColumn(Column):
-    def __init__(self, title, column_name, column_header, allow_empty=False):
+    def __init__(self, title, column_name, column_header, allow_empty=False, match_partial=False):
         super().__init__(title, column_name, column_header)
 
         self.csv_take_last = self.title == "einsatz"
 
         self.allow_empty = allow_empty
+        self.match_partial = match_partial
         self.data: List = []
 
     def set_data(self, data):
@@ -41,6 +42,12 @@ class ReferenceColumn(Column):
         if self.csv_take_last:
             value = str(value).split(",")[-1]
         value_cleaned = str(value).strip()
+
+        if self.match_partial:
+            for entry in self.data:
+                if entry in value_cleaned:
+                    return True
+            return False
 
         return value_cleaned in self.data  # True if there is matching value in data list, False otherwise
 

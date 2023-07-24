@@ -1,4 +1,4 @@
-from GSMTools.excel import Data, Reference
+from excel import Data, Reference
 
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 from tkinter import Tk
